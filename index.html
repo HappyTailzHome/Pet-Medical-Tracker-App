@@ -1,0 +1,242 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<title>Pet Care Tracker</title>
+
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+
+<style>
+:root {
+  --primary: #5f9ea0;
+  --secondary: #f0f4f5;
+  --accent: #3a7d7c;
+}
+
+body {
+  font-family: sans-serif;
+  margin: 0;
+  background: var(--secondary);
+}
+
+header {
+  background: var(--primary);
+  color: white;
+  padding: 12px;
+  text-align: center;
+}
+
+.container { padding: 10px; }
+
+.tabs {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 5px;
+  margin-bottom: 10px;
+}
+
+.tab {
+  padding: 6px 10px;
+  background: white;
+  border-radius: 6px;
+  cursor: pointer;
+}
+
+.tab.active {
+  background: var(--primary);
+  color: white;
+}
+
+button {
+  margin: 5px;
+  padding: 8px;
+  border: none;
+  border-radius: 6px;
+  background: var(--primary);
+  color: white;
+  cursor: pointer;
+}
+
+table {
+  width: 100%;
+  background: white;
+  border-collapse: collapse;
+  margin-top: 10px;
+}
+
+td, th {
+  padding: 6px;
+  border-bottom: 1px solid #eee;
+  text-align: center;
+}
+
+input, textarea {
+  width: 100%;
+  border: none;
+  text-align: center;
+}
+
+.history {
+  background: white;
+  padding: 8px;
+  margin-top: 10px;
+  border-radius: 8px;
+  font-size: 13px;
+  max-height: 150px;
+  overflow-y: auto;
+}
+</style>
+</head>
+
+<body>
+
+<header>🐾 Pet Care Tracker</header>
+
+<div class="container">
+
+<div class="tabs" id="tabs"></div>
+<button onclick="addPet()">➕ Add Pet</button>
+
+<div id="app"></div>
+
+</div>
+
+<script>
+const STORE = "petAppV2";
+let state = { pets: {}, current: null };
+
+/* ---------- PET TABS ---------- */
+function renderTabs(){
+  const t = document.getElementById("tabs");
+  t.innerHTML = "";
+
+  Object.keys(state.pets).forEach(name => {
+    const tab = document.createElement("div");
+    tab.className = "tab" + (name === state.current ? " active" : "");
+    tab.textContent = name;
+    tab.onclick = () => {
+      state.current = name;
+      render();
+      save();
+    };
+    t.appendChild(tab);
+  });
+}
+
+function addPet(){
+  const name = prompt("Pet name?");
+  if(!name) return;
+
+  state.pets[name] = { meds: [], history: [] };
+  state.current = name;
+  render();
+  save();
+}
+
+/* ---------- RENDER ---------- */
+function render(){
+  renderTabs();
+
+  const app = document.getElementById("app");
+  if(!state.current){
+    app.innerHTML = "<p>Add a pet to begin</p>";
+    return;
+  }
+
+  const pet = state.pets[state.current];
+
+  app.innerHTML = `
+    <button onclick="addMed()">➕ Medication</button>
+
+    <table>
+      <tr>
+        <th>Med</th>
+        <th>Dose</th>
+        <th>Hrs</th>
+        <th>Last</th>
+        <th>Next</th>
+        <th>Notes</th>
+        <th>✔</th>
+        <th>❌</th>
+      </tr>
+      ${pet.meds.map((m,i)=>rowHTML(m,i)).join("")}
+    </table>
+
+    <div class="history">
+      <b>History</b><br>
+      ${pet.history.map(h=>`• ${h}`).join("<br>")}
+    </div>
+  `;
+}
+
+function rowHTML(m,i){
+  return `
+  <tr>
+    <td><input value="${m.med||""}" onchange="updateMed(${i},'med',this.value)"></td>
+    <td><input value="${m.dose||""}" onchange="updateMed(${i},'dose',this.value)"></td>
+    <td><input type="number" value="${m.freq||""}" onchange="updateMed(${i},'freq',this.value)"></td>
+    <td><input type="datetime-local" value="${m.last||""}" onchange="updateMed(${i},'last',this.value)"></td>
+    <td>${calcNext(m)}</td>
+    <td><textarea onchange="updateMed(${i},'notes',this.value)">${m.notes||""}</textarea></td>
+    <td><button onclick="markGiven(${i})">✔</button></td>
+    <td><button onclick="delMed(${i})">X</button></td>
+  </tr>
+  `;
+}
+
+/* ---------- MED LOGIC ---------- */
+function addMed(){
+  state.pets[state.current].meds.push({});
+  render();
+  save();
+}
+
+function updateMed(i, field, val){
+  state.pets[state.current].meds[i][field] = val;
+  render();
+  save();
+}
+
+function delMed(i){
+  state.pets[state.current].meds.splice(i,1);
+  render();
+  save();
+}
+
+function calcNext(m){
+  if(!m.freq || !m.last) return "";
+  const next = new Date(new Date(m.last).getTime() + m.freq*3600000);
+  return next.toLocaleString();
+}
+
+/* ---------- HISTORY ---------- */
+function markGiven(i){
+  const pet = state.pets[state.current];
+  const m = pet.meds[i];
+
+  const now = new Date().toLocaleString();
+  const entry = `${now} — ${m.med || "Med"} (${m.dose || ""})`;
+
+  pet.history.unshift(entry);
+  m.last = new Date().toISOString().slice(0,16);
+
+  render();
+  save();
+}
+
+/* ---------- STORAGE ---------- */
+function save(){
+  localStorage.setItem(STORE, JSON.stringify(state));
+}
+
+function load(){
+  state = JSON.parse(localStorage.getItem(STORE)) || { pets:{}, current:null };
+}
+
+/* INIT */
+load();
+render();
+</script>
+
+</body>
+</html>
