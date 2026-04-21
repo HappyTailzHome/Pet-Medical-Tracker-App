@@ -102,7 +102,8 @@ input, textarea {
 </div>
 
 <script>
-const STORE = "petAppV2";
+<script>
+const STORE = "petAppV3";
 let state = { pets: {}, current: null };
 
 /* ---------- PET TABS ---------- */
@@ -127,10 +128,20 @@ function addPet(){
   const name = prompt("Pet name?");
   if(!name) return;
 
-  state.pets[name] = { meds: [], history: [] };
+  state.pets[name] = { meds: [], history: [], shareCode: makeCode() };
   state.current = name;
   render();
   save();
+}
+
+/* ---------- SHARE ---------- */
+function makeCode(){
+  return Math.random().toString(36).substring(2,8);
+}
+
+function showShare(){
+  const pet = state.pets[state.current];
+  alert("Share this code: " + pet.shareCode + "\n(Manual sync for now)");
 }
 
 /* ---------- RENDER ---------- */
@@ -147,6 +158,8 @@ function render(){
 
   app.innerHTML = `
     <button onclick="addMed()">➕ Medication</button>
+    <button onclick="exportICS()">📅 Export Calendar</button>
+    <button onclick="showShare()">👥 Share</button>
 
     <table>
       <tr>
@@ -209,19 +222,81 @@ function calcNext(m){
   return next.toLocaleString();
 }
 
-/* ---------- HISTORY ---------- */
+/* ---------- HISTORY + MISSED ---------- */
 function markGiven(i){
   const pet = state.pets[state.current];
   const m = pet.meds[i];
 
-  const now = new Date().toLocaleString();
-  const entry = `${now} — ${m.med || "Med"} (${m.dose || ""})`;
+  const now = new Date();
+  const nowStr = now.toLocaleString();
 
+  const entry = `${nowStr} — GIVEN ${m.med || "Med"} (${m.dose || ""})`;
   pet.history.unshift(entry);
-  m.last = new Date().toISOString().slice(0,16);
+
+  m.last = now.toISOString().slice(0,16);
 
   render();
   save();
+}
+
+function checkMissed(){
+  const pet = state.pets[state.current];
+  if(!pet) return;
+
+  const now = new Date();
+
+  pet.meds.forEach(m => {
+    if(!m.freq || !m.last) return;
+
+    const next = new Date(new Date(m.last).getTime() + m.freq*3600000);
+
+    if(now > next && !m._missedLogged){
+      const entry = `${now.toLocaleString()} — MISSED ${m.med || "Med"}`;
+      pet.history.unshift(entry);
+      m._missedLogged = true;
+    }
+
+    if(now <= next){
+      m._missedLogged = false;
+    }
+  });
+
+  save();
+}
+
+/* ---------- CALENDAR EXPORT ---------- */
+function exportICS(){
+  const pet = state.pets[state.current];
+  if(!pet) return;
+
+  let events = [];
+
+  pet.meds.forEach(m => {
+    if(!m.freq || !m.last) return;
+
+    const next = new Date(new Date(m.last).getTime() + m.freq*3600000);
+
+    const d = next.toISOString().replace(/[-:]/g,"").split(".")[0];
+
+    events.push(
+`BEGIN:VEVENT
+SUMMARY:${state.current} - ${m.med} (${m.dose})
+DTSTART:${d}
+DESCRIPTION:${m.notes || ""}
+END:VEVENT`
+    );
+  });
+
+  const ics =
+`BEGIN:VCALENDAR
+VERSION:2.0
+${events.join("\n")}
+END:VCALENDAR`;
+
+  const a = document.createElement("a");
+  a.href = URL.createObjectURL(new Blob([ics]));
+  a.download = state.current + "_meds.ics";
+  a.click();
 }
 
 /* ---------- STORAGE ---------- */
@@ -236,6 +311,8 @@ function load(){
 /* INIT */
 load();
 render();
+setInterval(checkMissed, 60000);
+</script>
 </script>
 
 </body>
