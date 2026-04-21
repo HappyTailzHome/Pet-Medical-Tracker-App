@@ -5,6 +5,14 @@
 <title>Pet Care Tracker</title>
 
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
+<meta name="theme-color" content="#5f9ea0">
+
+<link rel="manifest" href="manifest.json">
+
+<!-- iOS PWA -->
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-title" content="PetCare">
+<link rel="apple-touch-icon" href="icon-192.png">
 
 <style>
 :root {
@@ -13,31 +21,38 @@
   --accent: #3a7d7c;
 }
 
+* {
+  box-sizing: border-box;
+  -webkit-tap-highlight-color: transparent;
+}
+
 body {
-  font-family: sans-serif;
   margin: 0;
+  font-family: sans-serif;
   background: var(--secondary);
+  overscroll-behavior: none;
 }
 
 header {
   background: var(--primary);
   color: white;
-  padding: 12px;
   text-align: center;
+  padding: 12px;
+  position: sticky;
+  top: 0;
 }
 
 .container { padding: 10px; }
 
 .tabs {
   display: flex;
-  flex-wrap: wrap;
   gap: 5px;
-  margin-bottom: 10px;
+  flex-wrap: wrap;
 }
 
 .tab {
-  padding: 6px 10px;
   background: white;
+  padding: 6px 10px;
   border-radius: 6px;
   cursor: pointer;
 }
@@ -49,19 +64,19 @@ header {
 
 button {
   margin: 5px;
-  padding: 8px;
+  padding: 10px;
   border: none;
   border-radius: 6px;
   background: var(--primary);
   color: white;
-  cursor: pointer;
+  min-height: 44px;
 }
 
 table {
   width: 100%;
   background: white;
-  border-collapse: collapse;
   margin-top: 10px;
+  border-collapse: collapse;
 }
 
 td, th {
@@ -74,6 +89,7 @@ input, textarea {
   width: 100%;
   border: none;
   text-align: center;
+  font-size: 16px;
 }
 
 .history {
@@ -81,9 +97,9 @@ input, textarea {
   padding: 8px;
   margin-top: 10px;
   border-radius: 8px;
-  font-size: 13px;
   max-height: 150px;
   overflow-y: auto;
+  font-size: 13px;
 }
 </style>
 </head>
@@ -95,53 +111,39 @@ input, textarea {
 <div class="container">
 
 <div class="tabs" id="tabs"></div>
+
 <button onclick="addPet()">➕ Add Pet</button>
+<button id="installBtn" style="display:none;">📲 Install App</button>
 
 <div id="app"></div>
 
 </div>
 
 <script>
-<script>
-const STORE = "petAppV3";
+const STORE = "petAppV4";
 let state = { pets: {}, current: null };
 
-/* ---------- PET TABS ---------- */
+/* ---------- PETS ---------- */
+function addPet(){
+  const name = prompt("Pet name?");
+  if(!name) return;
+  state.pets[name] = { meds: [], history: [] };
+  state.current = name;
+  save(); render();
+}
+
+/* ---------- TABS ---------- */
 function renderTabs(){
   const t = document.getElementById("tabs");
   t.innerHTML = "";
 
-  Object.keys(state.pets).forEach(name => {
+  Object.keys(state.pets).forEach(name=>{
     const tab = document.createElement("div");
-    tab.className = "tab" + (name === state.current ? " active" : "");
+    tab.className = "tab" + (name===state.current?" active":"");
     tab.textContent = name;
-    tab.onclick = () => {
-      state.current = name;
-      render();
-      save();
-    };
+    tab.onclick = ()=>{ state.current=name; save(); render(); };
     t.appendChild(tab);
   });
-}
-
-function addPet(){
-  const name = prompt("Pet name?");
-  if(!name) return;
-
-  state.pets[name] = { meds: [], history: [], shareCode: makeCode() };
-  state.current = name;
-  render();
-  save();
-}
-
-/* ---------- SHARE ---------- */
-function makeCode(){
-  return Math.random().toString(36).substring(2,8);
-}
-
-function showShare(){
-  const pet = state.pets[state.current];
-  alert("Share this code: " + pet.shareCode + "\n(Manual sync for now)");
 }
 
 /* ---------- RENDER ---------- */
@@ -159,7 +161,6 @@ function render(){
   app.innerHTML = `
     <button onclick="addMed()">➕ Medication</button>
     <button onclick="exportICS()">📅 Export Calendar</button>
-    <button onclick="showShare()">👥 Share</button>
 
     <table>
       <tr>
@@ -177,7 +178,7 @@ function render(){
 
     <div class="history">
       <b>History</b><br>
-      ${pet.history.map(h=>`• ${h}`).join("<br>")}
+      ${pet.history.map(h=>"• "+h).join("<br>")}
     </div>
   `;
 }
@@ -193,32 +194,28 @@ function rowHTML(m,i){
     <td><textarea onchange="updateMed(${i},'notes',this.value)">${m.notes||""}</textarea></td>
     <td><button onclick="markGiven(${i})">✔</button></td>
     <td><button onclick="delMed(${i})">X</button></td>
-  </tr>
-  `;
+  </tr>`;
 }
 
-/* ---------- MED LOGIC ---------- */
+/* ---------- MED ---------- */
 function addMed(){
   state.pets[state.current].meds.push({});
-  render();
-  save();
+  save(); render();
 }
 
-function updateMed(i, field, val){
-  state.pets[state.current].meds[i][field] = val;
-  render();
-  save();
+function updateMed(i,f,v){
+  state.pets[state.current].meds[i][f]=v;
+  save(); render();
 }
 
 function delMed(i){
   state.pets[state.current].meds.splice(i,1);
-  render();
-  save();
+  save(); render();
 }
 
 function calcNext(m){
-  if(!m.freq || !m.last) return "";
-  const next = new Date(new Date(m.last).getTime() + m.freq*3600000);
+  if(!m.freq||!m.last) return "";
+  const next = new Date(new Date(m.last).getTime()+m.freq*3600000);
   return next.toLocaleString();
 }
 
@@ -228,15 +225,12 @@ function markGiven(i){
   const m = pet.meds[i];
 
   const now = new Date();
-  const nowStr = now.toLocaleString();
-
-  const entry = `${nowStr} — GIVEN ${m.med || "Med"} (${m.dose || ""})`;
-  pet.history.unshift(entry);
+  pet.history.unshift(`${now.toLocaleString()} — GIVEN ${m.med||""}`);
 
   m.last = now.toISOString().slice(0,16);
+  m._missedLogged=false;
 
-  render();
-  save();
+  save(); render();
 }
 
 function checkMissed(){
@@ -245,74 +239,85 @@ function checkMissed(){
 
   const now = new Date();
 
-  pet.meds.forEach(m => {
-    if(!m.freq || !m.last) return;
+  pet.meds.forEach(m=>{
+    if(!m.freq||!m.last) return;
 
-    const next = new Date(new Date(m.last).getTime() + m.freq*3600000);
+    const next = new Date(new Date(m.last).getTime()+m.freq*3600000);
 
-    if(now > next && !m._missedLogged){
-      const entry = `${now.toLocaleString()} — MISSED ${m.med || "Med"}`;
-      pet.history.unshift(entry);
-      m._missedLogged = true;
+    if(now>next && !m._missedLogged){
+      pet.history.unshift(`${now.toLocaleString()} — MISSED ${m.med||""}`);
+      m._missedLogged=true;
     }
 
-    if(now <= next){
-      m._missedLogged = false;
-    }
+    if(now<=next) m._missedLogged=false;
   });
 
   save();
 }
 
-/* ---------- CALENDAR EXPORT ---------- */
+/* ---------- CALENDAR ---------- */
 function exportICS(){
   const pet = state.pets[state.current];
   if(!pet) return;
 
-  let events = [];
+  const events = pet.meds.map(m=>{
+    if(!m.freq||!m.last) return "";
 
-  pet.meds.forEach(m => {
-    if(!m.freq || !m.last) return;
-
-    const next = new Date(new Date(m.last).getTime() + m.freq*3600000);
-
+    const next = new Date(new Date(m.last).getTime()+m.freq*3600000);
     const d = next.toISOString().replace(/[-:]/g,"").split(".")[0];
 
-    events.push(
-`BEGIN:VEVENT
+    return `BEGIN:VEVENT
 SUMMARY:${state.current} - ${m.med} (${m.dose})
 DTSTART:${d}
-DESCRIPTION:${m.notes || ""}
-END:VEVENT`
-    );
-  });
+DESCRIPTION:${m.notes||""}
+END:VEVENT`;
+  }).join("\n");
 
-  const ics =
-`BEGIN:VCALENDAR
+  const ics = `BEGIN:VCALENDAR
 VERSION:2.0
-${events.join("\n")}
+${events}
 END:VCALENDAR`;
 
-  const a = document.createElement("a");
-  a.href = URL.createObjectURL(new Blob([ics]));
-  a.download = state.current + "_meds.ics";
+  const a=document.createElement("a");
+  a.href=URL.createObjectURL(new Blob([ics]));
+  a.download=state.current+"_meds.ics";
   a.click();
 }
 
 /* ---------- STORAGE ---------- */
 function save(){
-  localStorage.setItem(STORE, JSON.stringify(state));
+  localStorage.setItem(STORE,JSON.stringify(state));
 }
 
 function load(){
-  state = JSON.parse(localStorage.getItem(STORE)) || { pets:{}, current:null };
+  state = JSON.parse(localStorage.getItem(STORE)) || {pets:{},current:null};
+}
+
+/* ---------- INSTALL ---------- */
+let deferredPrompt;
+
+window.addEventListener("beforeinstallprompt", e=>{
+  e.preventDefault();
+  deferredPrompt=e;
+  document.getElementById("installBtn").style.display="inline-block";
+});
+
+document.getElementById("installBtn").onclick=()=>{
+  if(deferredPrompt){
+    deferredPrompt.prompt();
+    deferredPrompt=null;
+  }
+};
+
+/* ---------- SW ---------- */
+if("serviceWorker" in navigator){
+  navigator.serviceWorker.register("sw.js");
 }
 
 /* INIT */
 load();
 render();
-setInterval(checkMissed, 60000);
-</script>
+setInterval(checkMissed,60000);
 </script>
 
 </body>
