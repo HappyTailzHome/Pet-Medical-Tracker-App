@@ -1,0 +1,9 @@
+{
+  "name": "Pet Care Tracker",
+  "short_name": "PetTracker",
+  "start_url": "index.html",
+  "display": "standalone",
+  "background_color": "#f0f4f5",
+  "theme_color": "#5f9ea0",
+  "icons": []
+}
