@@ -2,12 +2,13 @@
   "name": "Pet Care Tracker",
   "short_name": "PetCare",
   "start_url": "./index.html",
+  "scope": "./",
   "display": "standalone",
   "display_override": ["standalone", "minimal-ui"],
+  "orientation": "portrait",
   "background_color": "#f0f4f5",
   "theme_color": "#5f9ea0",
-  "orientation": "portrait",
-  "scope": "./",
+  "description": "Track pet medications, vet visits, and care history",
   "icons": [
     {
       "src": "icon-192.png",
