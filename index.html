@@ -1,0 +1,318 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<title>Pet Care Tracker</title>
+
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<meta name="theme-color" content="#5f9ea0">
+
+<link rel="manifest" href="manifest.json">
+
+<style>
+:root {
+  --primary: #5f9ea0;
+  --secondary: #f0f4f5;
+  --accent: #3a7d7c;
+  --danger: #e57373;
+  --success: #81c784;
+}
+
+body {
+  font-family: -apple-system, BlinkMacSystemFont, sans-serif;
+  margin: 0;
+  background: var(--secondary);
+  color: #333;
+}
+
+header {
+  background: var(--primary);
+  color: white;
+  padding: 15px;
+  text-align: center;
+  font-size: 20px;
+}
+
+.container {
+  padding: 10px;
+}
+
+button {
+  background: var(--primary);
+  color: white;
+  border: none;
+  padding: 10px;
+  margin: 5px 3px;
+  border-radius: 8px;
+  font-size: 14px;
+  cursor: pointer;
+}
+
+button:hover {
+  background: var(--accent);
+}
+
+table {
+  width: 100%;
+  border-collapse: collapse;
+  background: white;
+  border-radius: 10px;
+  overflow: hidden;
+  margin-bottom: 15px;
+}
+
+th {
+  background: var(--primary);
+  color: white;
+}
+
+td, th {
+  padding: 8px;
+  border-bottom: 1px solid #eee;
+  text-align: center;
+}
+
+input, textarea {
+  width: 100%;
+  border: none;
+  padding: 5px;
+  text-align: center;
+}
+
+textarea { resize: vertical; }
+
+.overdue { background: #ffe5e5; }
+.given { background: #e6f4ea; }
+
+.card {
+  background: white;
+  border-radius: 10px;
+  padding: 10px;
+  margin-bottom: 15px;
+  box-shadow: 0 2px 6px rgba(0,0,0,0.05);
+}
+</style>
+</head>
+
+<body>
+
+<header>🐾 Pet Care Tracker</header>
+
+<div class="container">
+
+<div class="card">
+<button onclick="addMedRow()">➕ Medication</button>
+<button onclick="addVetRow()">➕ Vet Visit</button>
+<button onclick="exportICS()">📅 Calendar</button>
+<button onclick="enableNotifications()">🔔 Alerts</button>
+</div>
+
+<h3>💊 Medications</h3>
+<table id="medTable">
+<thead>
+<tr>
+<th>Pet</th>
+<th>Med</th>
+<th>Dose</th>
+<th>Hrs</th>
+<th>Last</th>
+<th>Next</th>
+<th>✔</th>
+<th>❌</th>
+</tr>
+</thead>
+<tbody></tbody>
+</table>
+
+<h3>🏥 Vet Visits</h3>
+<table id="vetTable">
+<thead>
+<tr>
+<th>Pet</th>
+<th>Date</th>
+<th>Reason</th>
+<th>❌</th>
+</tr>
+</thead>
+<tbody></tbody>
+</table>
+
+</div>
+
+<script>
+const STORE = "petApp";
+
+/* SAVE */
+function save(){
+  const data = { meds: [], vets: [] };
+
+  document.querySelectorAll("#medTable tbody tr").forEach(r => {
+    const inputs = r.querySelectorAll("input");
+    data.meds.push([
+      inputs[0].value,
+      inputs[1].value,
+      inputs[2].value,
+      inputs[3].value,
+      inputs[4].value,
+      inputs[5].checked
+    ]);
+  });
+
+  document.querySelectorAll("#vetTable tbody tr").forEach(r => {
+    const inputs = r.querySelectorAll("input");
+    data.vets.push([
+      inputs[0].value,
+      inputs[1].value,
+      inputs[2].value
+    ]);
+  });
+
+  localStorage.setItem(STORE, JSON.stringify(data));
+}
+
+/* LOAD */
+function load(){
+  const d = JSON.parse(localStorage.getItem(STORE) || "{}");
+  (d.meds || []).forEach(row => addMedRow(row));
+  (d.vets || []).forEach(row => addVetRow(row));
+}
+
+/* MED ROW */
+function addMedRow(data = []){
+  const r = document.createElement("tr");
+
+  const fields = ["text","text","text","number","datetime-local","checkbox"];
+
+  fields.forEach((type, i) => {
+    const td = document.createElement("td");
+    const input = document.createElement("input");
+    input.type = type;
+
+    if(type === "checkbox"){
+      input.checked = data[i] || false;
+    } else {
+      input.value = data[i] || "";
+    }
+
+    input.oninput = () => { update(r); save(); };
+
+    td.appendChild(input);
+    r.appendChild(td);
+  });
+
+  /* NEXT COLUMN */
+  const nextCell = document.createElement("td");
+  r.insertBefore(nextCell, r.children[5]);
+
+  /* DELETE BUTTON */
+  const del = document.createElement("td");
+  const btn = document.createElement("button");
+  btn.textContent = "X";
+  btn.onclick = () => { r.remove(); save(); };
+  del.appendChild(btn);
+  r.appendChild(del);
+
+  document.querySelector("#medTable tbody").appendChild(r);
+  update(r);
+}
+
+/* UPDATE NEXT DOSE */
+function update(r){
+  const i = r.querySelectorAll("input");
+  const freq = parseFloat(i[3].value);
+  const last = i[4].value;
+  const nextCell = r.children[5];
+
+  if(freq && last){
+    const next = new Date(new Date(last).getTime() + freq * 3600000);
+
+    nextCell.textContent = next.toLocaleString();
+    nextCell.dataset.iso = next.toISOString();
+
+    r.classList.remove("overdue","given");
+
+    if(i[5].checked){
+      r.classList.add("given");
+    } else if(next < new Date()){
+      r.classList.add("overdue");
+    }
+  }
+}
+
+/* VET ROW */
+function addVetRow(data = []){
+  const r = document.createElement("tr");
+
+  ["text","date","text"].forEach((type, i) => {
+    const td = document.createElement("td");
+    const input = document.createElement("input");
+    input.type = type;
+    input.value = data[i] || "";
+    input.oninput = save;
+
+    td.appendChild(input);
+    r.appendChild(td);
+  });
+
+  const del = document.createElement("td");
+  const btn = document.createElement("button");
+  btn.textContent = "X";
+  btn.onclick = () => { r.remove(); save(); };
+  del.appendChild(btn);
+  r.appendChild(del);
+
+  document.querySelector("#vetTable tbody").appendChild(r);
+}
+
+/* EXPORT CALENDAR */
+function exportICS(){
+  let events = [];
+
+  document.querySelectorAll("#medTable tbody tr").forEach(r => {
+    const inputs = r.querySelectorAll("input");
+    const iso = r.children[5].dataset.iso;
+
+    if(iso){
+      const d = iso.replace(/[-:]/g,"").split(".")[0];
+      events.push(
+`BEGIN:VEVENT
+SUMMARY:${inputs[0].value} ${inputs[1].value}
+DTSTART:${d}
+END:VEVENT`
+      );
+    }
+  });
+
+  const ics =
+`BEGIN:VCALENDAR
+${events.join("\n")}
+END:VCALENDAR`;
+
+  const a = document.createElement("a");
+  a.href = URL.createObjectURL(new Blob([ics]));
+  a.download = "calendar.ics";
+  a.click();
+}
+
+/* NOTIFICATIONS */
+function enableNotifications(){
+  Notification.requestPermission().then(p => {
+    alert("Notification permission: " + p);
+  });
+}
+
+/* SERVICE WORKER */
+if("serviceWorker" in navigator){
+  navigator.serviceWorker.register("sw.js")
+    .catch(err => console.error("Service Worker failed:", err));
+}
+
+/* INIT */
+load();
+setInterval(() => {
+  document.querySelectorAll("#medTable tbody tr").forEach(update);
+}, 60000);
+</script>
+
+</body>
+</html>
